@@ -3,8 +3,8 @@ use std::ops::Sub;
 use wasm_bindgen::prelude::*;
 use glam::Vec2;
 
-const MAX_SPEED: f32 = 10.0;
-const MAX_FORCE: f32 = 20.0;
+const MAX_SPEED: f32 = 2.5;
+const MAX_FORCE: f32 = 0.45;
 
 
 ///The "Boid" is the individual bird that when combined, creates a complex
@@ -53,13 +53,14 @@ impl Boid {
     ///Each boid will self-manage according to separation/cohesion/alignment rules
     fn run(&mut self, boids: &Vec<Boid>) {
         //separation, alignmnet and cohesion
-        let mut separation = self.separate(boids);     //pass in itself, and reference to the other boids
-        let mut alignment = self.align(boids);
-        let mut cohesion = self.cohere(boids);
+        let separation = self.separate(boids);
+        let alignment = self.align(boids);
+        let cohesion = self.cohere(boids);
 
-        separation *= 1.5;                              //Fine tune with arbitrary weights
-        alignment *= 1.0;
-        cohesion *= 1.0;
+        // Play with these weights to change behavior:
+        let separation = separation * 1.4;   // Higher = more personal space
+        let alignment = alignment * 1.0;     // Higher = more coordinated movement
+        let cohesion = cohesion * 1.0;       // Higher = tighter flocks
 
         self.apply_force(separation);
         self.apply_force(alignment);
@@ -101,16 +102,16 @@ impl Boid {
     }
 
     fn separate(&self, boids: &Vec<Boid>) -> Vec2 {
-        let desiredSeparation: f32 = 50.0;   //Arbitrary
+        let desiredSeparation: f32 = 25.0;   //Arbitrary
 
-        let mut sum = Vec2::new(0.0, 0.0);
+        let mut sum = Vec2::ZERO;
         let mut count = 0;
         for other in boids {
-            let distance = Vec2::distance(self.position, other.position);
+            let distance = self.position.distance(other.position);
 
-            if self != other && distance < desiredSeparation {
+            if self != other && distance > 0.0 && distance < desiredSeparation {
                 let mut diff = self.position - other.position;
-                diff = diff.normalize() * (1.0 / distance);
+                diff = diff.normalize() / distance;
             
                 sum += diff;
                 count+=1;
@@ -118,24 +119,25 @@ impl Boid {
         }
 
         if count > 0 {
+            sum /= count as f32;  // Get average
             sum = sum.normalize() * self.max_speed;
             let steer = sum - self.velocity;
             let steer = steer.clamp_length_max(self.max_force);
             steer
         } else {
-            Vec2::new(0.0, 0.0)
+            Vec2::ZERO
         }
     } 
 
     fn align(&self, boids: &Vec<Boid>) -> Vec2{
         let neighbourDistance: f32 = 50.0;
         
-        let mut sum = Vec2::new(0.0, 0.0);
+        let mut sum = Vec2::ZERO;
         let mut count = 0;
 
         //Add up all the velocities and divide by the total to calculate the average velocity
         for other in boids {
-            let distance: f32 = Vec2::distance(self.position, other.position);
+            let distance: f32 = self.position.distance(other.position);
             
             if self != other && distance < neighbourDistance {
                 sum += other.velocity; 
@@ -151,17 +153,17 @@ impl Boid {
             let steer = steer.clamp_length_max(self.max_force);
             steer
         } else {
-            Vec2::new(0.0, 0.0) //if no close boids are found, the steering force is zero
+            Vec2::ZERO //if no close boids are found, the steering force is zero
         }
     }
 
     fn cohere(&self, boids: &Vec<Boid>) -> Vec2 {
-        let neighbourDistance: f32 = 50.0;
+        let neighbourDistance: f32 = 40.0;
 
-        let mut sum = Vec2::new(0.0, 0.0);
+        let mut sum = Vec2::ZERO;
         let mut count = 0;
         for other in boids {
-            let distance = Vec2::distance(self.position, other.position);
+            let distance = self.position.distance(other.position);
             if self != other && distance < neighbourDistance {
                 sum += other.position;
                 count += 1;
@@ -171,7 +173,7 @@ impl Boid {
             sum /= count as f32;
             self.seek(sum)
         } else {
-            Vec2::new(0.0, 0.0)
+            Vec2::ZERO
         }
     }
 

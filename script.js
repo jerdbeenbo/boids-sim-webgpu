@@ -3,7 +3,7 @@ import init, { Flock } from './pkg/boids_sim.js';
 async function run() {
     await init();
     
-    const flock = new Flock(100);
+    const flock = new Flock(400);
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     
