@@ -1,8 +1,11 @@
+use std::ops::Sub;
+
 use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
+use glam::Vec2;
 
 const MAX_SPEED: f32 = 10.0;
 const MAX_FORCE: f32 = 20.0;
+
 
 ///The "Boid" is the individual bird that when combined, creates a complex
 /// flocking behaviour system
@@ -13,10 +16,11 @@ const MAX_FORCE: f32 = 20.0;
 /// max_speed: f32 -> maximum speed the boid can go
 /// max_force: f32 -> force applied for alignment / cohesion / sparation phases
 /// ```
+#[derive(PartialEq, Clone)]
 struct Boid {
-    x: f32,             //x Pos
-    y: f32,             //Y pos
-    velocity: f32,      //Velocity
+    position: Vec2,
+    velocity: Vec2,      //Velocity
+    acceleration: Vec2,
     max_speed: f32,     //Generation Speed
     max_force: f32,     //Alignment / Cohesion / Separation
 
@@ -30,19 +34,26 @@ struct Boid {
 }
 
 impl Boid {
-    fn spawn() -> Self {
+     fn spawn() -> Self {
         Boid { 
-            x: 0.0, 
-            y: 0.0, 
-            velocity: 0.0, 
+            position: Vec2::new(
+                fastrand::f32() * 1200.0,  // Random x: 0.0 to 1200.0
+                fastrand::f32() * 800.0    // Random y: 0.0 to 800.0
+            ),
+            velocity: Vec2::new(
+                (fastrand::f32() - 0.5) * 4.0,  // Random velocity: -2.0 to 2.0
+                (fastrand::f32() - 0.5) * 4.0
+            ), 
+            acceleration: Vec2::ZERO,
             max_speed: MAX_SPEED, 
-            max_force: MAX_FORCE }
+            max_force: MAX_FORCE 
+        }
     }
 
     ///Each boid will self-manage according to separation/cohesion/alignment rules
     fn run(&mut self, boids: &Vec<Boid>) {
         //separation, alignmnet and cohesion
-        let mut separation = self.seperate(boids);     //pass in itself, and reference to the other boids
+        let mut separation = self.separate(boids);     //pass in itself, and reference to the other boids
         let mut alignment = self.align(boids);
         let mut cohesion = self.cohere(boids);
 
@@ -50,33 +61,134 @@ impl Boid {
         alignment *= 1.0;
         cohesion *= 1.0;
 
-        self.applyForce(separation);
-        self.applyForce(alignment);
-        self.applyForce(cohesion);
+        self.apply_force(separation);
+        self.apply_force(alignment);
+        self.apply_force(cohesion);
+
+        self.update();
     }
 
-    fn align(boid: Boid, boids: &Vec<Boid>) {
+    fn apply_force(&mut self, force: Vec2) {
+        self.acceleration += force;
+    }
+
+    fn update(&mut self) {
+        self.velocity += self.acceleration;
+        self.velocity = self.velocity.clamp_length_max(self.max_speed);
+        self.position += self.velocity;
+        
+        // Wrap around screen edges
+        if self.position.x < 0.0 { self.position.x = 1200.0; }
+        if self.position.x > 1200.0 { self.position.x = 0.0; }
+        if self.position.y < 0.0 { self.position.y = 800.0; }
+        if self.position.y > 800.0 { self.position.y = 0.0; }
+        
+        self.acceleration = Vec2::ZERO;
+    }
+
+    fn seek(&self, target: Vec2) -> Vec2 {
+        // Calculate desired velocity (target - current position)
+        let desired = target - self.position;
+        
+        // Set magnitude to max speed
+        let desired = desired.normalize() * self.max_speed;
+        
+        // Calculate steering force (desired - current velocity)
+        let steer = desired - self.velocity;
+        
+        // Limit steering force
+        steer.clamp_length_max(self.max_force)
+    }
+
+    fn separate(&self, boids: &Vec<Boid>) -> Vec2 {
+        let desiredSeparation: f32 = 50.0;   //Arbitrary
+
         let mut sum = Vec2::new(0.0, 0.0);
+        let mut count = 0;
+        for other in boids {
+            let distance = Vec2::distance(self.position, other.position);
+
+            if self != other && distance < desiredSeparation {
+                let mut diff = self.position - other.position;
+                diff = diff.normalize() * (1.0 / distance);
+            
+                sum += diff;
+                count+=1;
+            }
+        }
+
+        if count > 0 {
+            sum = sum.normalize() * self.max_speed;
+            let steer = sum - self.velocity;
+            let steer = steer.clamp_length_max(self.max_force);
+            steer
+        } else {
+            Vec2::new(0.0, 0.0)
+        }
+    } 
+
+    fn align(&self, boids: &Vec<Boid>) -> Vec2{
+        let neighbourDistance: f32 = 50.0;
+        
+        let mut sum = Vec2::new(0.0, 0.0);
+        let mut count = 0;
 
         //Add up all the velocities and divide by the total to calculate the average velocity
         for other in boids {
-            sum += other.velocity;
+            let distance: f32 = Vec2::distance(self.position, other.position);
+            
+            if self != other && distance < neighbourDistance {
+                sum += other.velocity; 
+                count += 1;     //for an average, keep track of how many boids are within the distance      
+            }
         }
 
-        sum /= boids.len() as f32;
-        sum
+        if count > 0 {
+            sum /= count as f32;
+            sum = sum.normalize() * self.max_speed;
 
+            let steer = sum - self.velocity;
+            let steer = steer.clamp_length_max(self.max_force);
+            steer
+        } else {
+            Vec2::new(0.0, 0.0) //if no close boids are found, the steering force is zero
+        }
     }
+
+    fn cohere(&self, boids: &Vec<Boid>) -> Vec2 {
+        let neighbourDistance: f32 = 50.0;
+
+        let mut sum = Vec2::new(0.0, 0.0);
+        let mut count = 0;
+        for other in boids {
+            let distance = Vec2::distance(self.position, other.position);
+            if self != other && distance < neighbourDistance {
+                sum += other.position;
+                count += 1;
+            }
+        }
+        if count > 0 {
+            sum /= count as f32;
+            self.seek(sum)
+        } else {
+            Vec2::new(0.0, 0.0)
+        }
+    }
+
 }
 
 ///The Flock struct is a collection of Vec<Boid> associated with a flockid
+#[wasm_bindgen]
 struct Flock {
     flockid: usize,         //For flock-level control
     boids: Vec<Boid>,       //The vec of each boid within this flock
 }
 
+#[wasm_bindgen]
 impl Flock {
-    fn new(amt: usize) -> Flock {
+
+    #[wasm_bindgen(constructor)]
+    pub fn new(amt: usize) -> Flock {
 
         //create n boids
         let mut boids: Vec<Boid> = Vec::with_capacity(amt);
@@ -93,17 +205,25 @@ impl Flock {
 
     }
 
-    ///
-    fn run(&mut self) {
+    #[wasm_bindgen]
+    pub fn update(&mut self) {
+
+        let boids_clone = self.boids.clone();
+
         for boid in &mut self.boids {
-            boid.run(&self.boids)
+            boid.run(&boids_clone)
         }
     }
-}
 
-///'Master function' that handles all flocking behaviour
-fn flock (boids: Vec<Boid>) {
-    let separation = this.separate(boids)
+    #[wasm_bindgen]
+    pub fn get_positions(&self) -> Vec<f32> {
+        let mut positions = Vec::new();
+        for boid in &self.boids {
+            positions.push(boid.position.x);
+            positions.push(boid.position.y);
+        }
+        positions
+    }
 }
 
 //WASM WRAPPER
