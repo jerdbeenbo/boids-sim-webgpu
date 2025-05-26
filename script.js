@@ -16,7 +16,8 @@ async function run() {
         for (let i = 0; i < positions.length; i += 2) {
             ctx.beginPath();
             ctx.arc(positions[i], positions[i + 1], 3, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.fillStyle = "yellow";
+            ctx.fill( );
         }
         
         requestAnimationFrame(animate);
