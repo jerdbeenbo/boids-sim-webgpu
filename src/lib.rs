@@ -3,8 +3,8 @@ use std::ops::Sub;
 use wasm_bindgen::prelude::*;
 use glam::Vec2;
 
-const MAX_SPEED: f32 = 2.5;
-const MAX_FORCE: f32 = 0.50;
+const MAX_SPEED: f32 = 6.0;
+const MAX_FORCE: f32 = 1.4;
 
 
 ///The "Boid" is the individual bird that when combined, creates a complex
@@ -56,9 +56,9 @@ impl Boid {
         let alignment = self.align(boids);
         let cohesion = self.cohere(boids);
 
-        let separation = separation * 2.0;
-        let alignment = alignment * 0.3;
-        let cohesion = cohesion * 3.0;
+        let separation = separation * 1.2;
+        let alignment = alignment * 1.1;
+        let cohesion = cohesion * 1.0;
 
         self.apply_force(separation);
         self.apply_force(alignment);
@@ -231,7 +231,7 @@ impl Flock {
 #[wasm_bindgen]
 pub fn setup() {
     //Run this initialisation
-    let flock: Flock = Flock::new(120);      //Create a new flock with n boids
+    let flock: Flock = Flock::new(600);      //Create a new flock with n boids
 }
 
 
