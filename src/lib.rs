@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 use glam::Vec2;
 
 const MAX_SPEED: f32 = 2.5;
-const MAX_FORCE: f32 = 0.45;
+const MAX_FORCE: f32 = 0.50;
 
 
 ///The "Boid" is the individual bird that when combined, creates a complex
