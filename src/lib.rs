@@ -6,43 +6,12 @@ use wasm_bindgen::prelude::*;
 const MAX_SPEED: f32 = 6.0;
 const MAX_FORCE: f32 = 0.9; //How sharp or smooth they turn
 
-const GRID_RESOLUTION: usize = 40;      //each cell is 40x40 pixels
+const GRID_RESOLUTION: usize = 40; //each cell is 40x40 pixels
 const WIDTH: usize = 1200;
 const HEIGHT: usize = 800;
 
 const COLS: usize = WIDTH / GRID_RESOLUTION;
 const ROWS: usize = HEIGHT / GRID_RESOLUTION;
-
-///For binning (bin-lattice spatial subdivision)
-#[derive(Clone)]
-struct Cell {
-    boids: Vec<Boid>,
-}
-
-impl Cell {
-
-    fn default() -> Cell {
-        Cell {
-            boids: Cell::new()
-        }
-    }
-
-    fn new() -> Vec<Boid>{
-        Vec::new()
-    }
-
-    fn blank_slate() -> Vec<Vec<Cell>> {
-        let blank_cell: Cell = Cell {
-            boids: Cell::new(),
-        };
-
-        vec![vec![blank_cell; COLS]; ROWS]
-    }
-
-    fn add(&mut self, boid: &Boid) {
-        self.boids.push(boid.clone());
-    }
-}
 
 ///The "Boid" is the individual bird that when combined, creates a complex
 /// flocking behaviour system
@@ -140,6 +109,11 @@ impl Boid {
         // Calculate desired velocity (target - current position)
         let desired = target - self.position;
 
+        // Safe normalization check
+        if desired.length() < 0.001 {
+            return Vec2::ZERO;
+        }
+
         // Set magnitude to max speed
         let desired = desired.normalize() * self.max_speed;
 
@@ -151,28 +125,37 @@ impl Boid {
     }
 
     fn separate(&self, boids: &Vec<Boid>) -> Vec2 {
-        let desired_separation: f32 = 19.0; // Reduce for tighter groups
-
+        let desired_separation: f32 = 19.0;
         let mut sum = Vec2::ZERO;
         let mut count = 0;
+
         for other in boids {
             let distance = self.position.distance(other.position);
 
-            if self != other && distance > 0.0 && distance < desired_separation {
+            if self != other && distance > 0.001 && distance < desired_separation {
+                // Added minimum distance check
                 let mut diff = self.position - other.position;
-                diff = diff.normalize() / distance;
 
-                sum += diff;
-                count += 1;
+                // Safe normalization
+                if diff.length() > 0.001 {
+                    diff = diff.normalize() / distance;
+                    sum += diff;
+                    count += 1;
+                }
             }
         }
 
         if count > 0 {
-            sum /= count as f32; // Get average
-            sum = sum.normalize() * self.max_speed;
-            let steer = sum - self.velocity;
-            let steer = steer.clamp_length_max(self.max_force);
-            steer
+            sum /= count as f32;
+
+            // Safe normalization
+            if sum.length() > 0.001 {
+                sum = sum.normalize() * self.max_speed;
+                let steer = sum - self.velocity;
+                steer.clamp_length_max(self.max_force)
+            } else {
+                Vec2::ZERO
+            }
         } else {
             Vec2::ZERO
         }
@@ -208,7 +191,11 @@ impl Boid {
 
         if count > 0 {
             sum /= count as f32;
-            sum = sum.normalize() * self.max_speed;
+            if sum.length() > 0.001 {
+                sum = sum.normalize() * self.max_speed;
+            } else {
+                sum = Vec2::ZERO;
+            }
 
             let steer = sum - self.velocity;
             let steer = steer.clamp_length_max(self.max_force);
@@ -242,7 +229,7 @@ impl Boid {
         let desired_view_angle: f32 = 0.6 / 2.0;
         let mut blocking_severity = 0.0;
 
-        // Calculate how "blocked" we are (gradual instead of binary)
+        // Calculate how "blocked" we are
         for other in boids {
             let d1: Vec2 = self.velocity;
             let d2: Vec2 = other.position - self.position;
@@ -250,7 +237,6 @@ impl Boid {
             let distance = self.position.distance(other.position);
 
             if self != other && angle < desired_view_angle && distance < 40.0 {
-                // Closer and more centered = more blocking
                 let angle_factor = 1.0 - (angle / desired_view_angle);
                 let distance_factor = 1.0 - (distance / 40.0);
                 blocking_severity += angle_factor * distance_factor;
@@ -258,15 +244,19 @@ impl Boid {
         }
 
         if blocking_severity < 0.3 {
-            // Threshold to avoid micro-movements
             return Vec2::ZERO;
+        }
+
+        //Check if velocity is zero before normalizing
+        if self.velocity.length() < 0.001 {
+            return Vec2::ZERO; // Can't determine lateral direction with zero velocity
         }
 
         let d1: Vec2 = self.velocity.normalize();
         let lateral_right = Vec2::new(d1.y, -d1.x);
         let lateral_left = Vec2::new(-d1.y, d1.x);
 
-        // Simple left/right evaluation
+        // Rest of the function remains the same...
         let look_ahead = 25.0;
         let right_pos = self.position + (lateral_right * look_ahead);
         let left_pos = self.position + (lateral_left * look_ahead);
@@ -291,7 +281,6 @@ impl Boid {
             lateral_right
         };
 
-        // Force scales with blocking severity (gradual response)
         let base_strength = 0.2;
         let severity_multiplier = (blocking_severity * 2.0).min(1.0);
 
@@ -324,35 +313,56 @@ impl Flock {
         }
     }
 
-    #[wasm_bindgen]
-    pub fn update_with_delta(&mut self, delta_time: f32) {
-
-        let mut grid: Vec<Vec<Cell>> = Cell::blank_slate();
-
-        //organise all the boids into the grid for spatial subdivision binning
-        for i in 0..COLS {
-            for j in 0..ROWS {
-                grid[i][j] = Cell::default();   //create fresh grid every frame
-                                                //small computational overhead, but will reduce
-                                                //overall computation for larger flock sizes
+#[wasm_bindgen]
+pub fn update_with_delta(&mut self, delta_time: f32) {
+    let boids_clone = self.boids.clone();
+    let mut grid: Vec<Vec<Vec<usize>>> = vec![vec![Vec::new(); ROWS]; COLS];
+    
+    // PHASE 1: Store boid indices in grid
+    for (i, boid) in boids_clone.iter().enumerate() {
+        let col = ((boid.position.x / GRID_RESOLUTION as f32) as usize).min(COLS - 1);
+        let row = ((boid.position.y / GRID_RESOLUTION as f32) as usize).min(ROWS - 1);
+        grid[col][row].push(i);
+    }
+    
+    // PHASE 2: Process each boid with 3x3 neighbor search
+    for (boid_index, boid) in self.boids.iter_mut().enumerate() {
+        let col = ((boid.position.x / GRID_RESOLUTION as f32) as usize).min(COLS - 1);
+        let row = ((boid.position.y / GRID_RESOLUTION as f32) as usize).min(ROWS - 1);
+        
+        let mut neighbors = Vec::new();
+        
+        // Check 3x3 grid around current boid
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                let check_col = (col as i32 + dx).max(0).min((COLS - 1) as i32) as usize;
+                let check_row = (row as i32 + dy).max(0).min((ROWS - 1) as i32) as usize;
+                
+                for &neighbor_idx in &grid[check_col][check_row] {
+                    if neighbor_idx < boids_clone.len() {
+                        neighbors.push(boids_clone[neighbor_idx].clone());
+                    }
+                }
             }
         }
-
-        //Place each boid into the appropriate cell in the grid
-        for boid in &mut self.boids {
-
-            //Find the right column and row
-            let mut col = (boid.position.x / GRID_RESOLUTION as f32).floor();
-            let mut row = (boid.position.y / GRID_RESOLUTION as f32).floor();
-
-            grid[col as usize][row as usize].add(&boid);
+        
+        if neighbors.is_empty() {
+            neighbors.push(boid.clone());
         }
-
-        let boids_clone = self.boids.clone();
-        for boid in &mut self.boids {
-            boid.run_with_delta(&boids_clone, delta_time);
-        }
+        
+        // Apply flocking with stronger forces
+        let separation = boid.separate(&neighbors);
+        let alignment = boid.align(&neighbors);
+        let cohesion = boid.cohere(&neighbors);
+        let unblock = boid.view_unblocking(&neighbors);
+        
+        boid.apply_force(separation * 2.0);  // Increased from 1.5
+        boid.apply_force(alignment * 1.5);   // Increased from 1.0
+        boid.apply_force(cohesion * 1.8);    // Increased from 1.2
+        boid.apply_force(unblock * 0.4);     // Increased from 0.3
+        boid.update_with_delta(delta_time);
     }
+}
 
     #[wasm_bindgen]
     pub fn get_positions(&self) -> Vec<f32> {
@@ -369,5 +379,5 @@ impl Flock {
 #[wasm_bindgen]
 pub fn setup() {
     //Run this initialisation
-    let flock: Flock = Flock::new(600); //Create a new flock with n boids
+    let flock: Flock = Flock::new(2000); //Create a new flock with n boids
 }
