@@ -59,7 +59,7 @@ impl Boid {
         let separation = separation * 1.5; // Increase separation for cleaner flocks
         let alignment = alignment * 1.0; // Keep moderate alignment
         let cohesion = cohesion * 1.2; // Increase cohesion for tighter groups
-        let unblock = unblock * 0.1; //Increase side-step decision making
+        let unblock = unblock * 0.3; //Increase side-step decision making
 
         self.apply_force(separation);
         self.apply_force(alignment);
