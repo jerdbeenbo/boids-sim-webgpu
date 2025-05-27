@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 use glam::Vec2;
 
 const MAX_SPEED: f32 = 6.0;
-const MAX_FORCE: f32 = 1.4;
+const MAX_FORCE: f32 = 0.9;     //How sharp or smooth they turn
 
 
 ///The "Boid" is the individual bird that when combined, creates a complex
@@ -56,9 +56,9 @@ impl Boid {
         let alignment = self.align(boids);
         let cohesion = self.cohere(boids);
 
-        let separation = separation * 1.2;
-        let alignment = alignment * 1.1;
-        let cohesion = cohesion * 1.0;
+        let separation = separation * 1.5;  // Increase separation for cleaner flocks
+        let alignment = alignment * 1.0;    // Keep moderate alignment
+        let cohesion = cohesion * 1.2;      // Increase cohesion for tighter groups
 
         self.apply_force(separation);
         self.apply_force(alignment);
@@ -103,14 +103,14 @@ impl Boid {
     }
 
     fn separate(&self, boids: &Vec<Boid>) -> Vec2 {
-        let desiredSeparation: f32 = 25.0;   //Arbitrary
+        let desired_separation: f32 = 19.0;  // Reduce for tighter groups
 
         let mut sum = Vec2::ZERO;
         let mut count = 0;
         for other in boids {
             let distance = self.position.distance(other.position);
 
-            if self != other && distance > 0.0 && distance < desiredSeparation {
+            if self != other && distance > 0.0 && distance < desired_separation {
                 let mut diff = self.position - other.position;
                 diff = diff.normalize() / distance;
             
@@ -130,17 +130,30 @@ impl Boid {
         }
     } 
 
+    ///Helper function to calculate angle between two vec
+
     fn align(&self, boids: &Vec<Boid>) -> Vec2{
-        let neighbourDistance: f32 = 50.0;
-        
+        let desired_view_angle: f32 = 4.0 / 2.0; //170 degrees in radian (half as we are measuring from the center of your vision outward)
+        let neighbour_distance = 50.0;
+
         let mut sum = Vec2::ZERO;
         let mut count = 0;
 
         //Add up all the velocities and divide by the total to calculate the average velocity
         for other in boids {
-            let distance: f32 = self.position.distance(other.position);
+
+            //velocity vector tells us the facing direction
+            let d1: Vec2 = self.velocity;
+
+            //the firection from current boid to other boid
+            let d2: Vec2 = other.position - self.position;
+
+            //calculate angle between d1 and d2
+            let angle = Vec2::angle_to(d1, d2).abs(); //we only care about full range so return absolute value (alwasy positive)
+
+            let distance = self.position.distance(other.position);
             
-            if self != other && distance < neighbourDistance {
+            if self != other && angle < desired_view_angle && distance < neighbour_distance {
                 sum += other.velocity; 
                 count += 1;     //for an average, keep track of how many boids are within the distance      
             }
@@ -159,13 +172,13 @@ impl Boid {
     }
 
     fn cohere(&self, boids: &Vec<Boid>) -> Vec2 {
-        let neighbourDistance: f32 = 40.0;
+        let neighbour_distance: f32 = 40.0; // Increase for stronger grouping
 
         let mut sum = Vec2::ZERO;
         let mut count = 0;
         for other in boids {
             let distance = self.position.distance(other.position);
-            if self != other && distance < neighbourDistance {
+            if self != other && distance < neighbour_distance {
                 sum += other.position;
                 count += 1;
             }
