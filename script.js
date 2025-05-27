@@ -27,7 +27,7 @@ function updateFPS() {
 async function run() {
     await init();
     
-    const flock = new Flock(1000);
+    const flock = new Flock(2000);
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     
