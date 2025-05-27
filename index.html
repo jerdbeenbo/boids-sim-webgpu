@@ -6,9 +6,11 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <h1>Big Booty Boids</h1>
+    <h3>Flocking Simulation</h3>
     <p id="fps-display">FPS: --</p>
-
+    <p>1500 individual boids, using the 3 classic flocking rules (Seperation, Alignment, Cohesion) + Gary Flake's 4th View Unblocking rule</p>
+    <p>Employing bin-lattice spatial subdivision for optimisation</p>
+    <p>Rust compiled to WebAssembly | HTML, JavaScript Canvas</p>
     <canvas id="canvas" width="1200" height="800"></canvas>
     <script type="module" src="script.js"></script>
     
