@@ -1,10 +1,48 @@
-use std::ops::Sub;
+use std::vec;
 
 use glam::Vec2;
 use wasm_bindgen::prelude::*;
 
 const MAX_SPEED: f32 = 6.0;
 const MAX_FORCE: f32 = 0.9; //How sharp or smooth they turn
+
+const GRID_RESOLUTION: usize = 40;      //each cell is 40x40 pixels
+const WIDTH: usize = 1200;
+const HEIGHT: usize = 800;
+
+const COLS: usize = WIDTH / GRID_RESOLUTION;
+const ROWS: usize = HEIGHT / GRID_RESOLUTION;
+
+///For binning (bin-lattice spatial subdivision)
+#[derive(Clone)]
+struct Cell {
+    boids: Vec<Boid>,
+}
+
+impl Cell {
+
+    fn default() -> Cell {
+        Cell {
+            boids: Cell::new()
+        }
+    }
+
+    fn new() -> Vec<Boid>{
+        Vec::new()
+    }
+
+    fn blank_slate() -> Vec<Vec<Cell>> {
+        let blank_cell: Cell = Cell {
+            boids: Cell::new(),
+        };
+
+        vec![vec![blank_cell; COLS]; ROWS]
+    }
+
+    fn add(&mut self, boid: &Boid) {
+        self.boids.push(boid.clone());
+    }
+}
 
 ///The "Boid" is the individual bird that when combined, creates a complex
 /// flocking behaviour system
@@ -288,6 +326,28 @@ impl Flock {
 
     #[wasm_bindgen]
     pub fn update_with_delta(&mut self, delta_time: f32) {
+
+        let mut grid: Vec<Vec<Cell>> = Cell::blank_slate();
+
+        //organise all the boids into the grid for spatial subdivision binning
+        for i in 0..COLS {
+            for j in 0..ROWS {
+                grid[i][j] = Cell::default();   //create fresh grid every frame
+                                                //small computational overhead, but will reduce
+                                                //overall computation for larger flock sizes
+            }
+        }
+
+        //Place each boid into the appropriate cell in the grid
+        for boid in &mut self.boids {
+
+            //Find the right column and row
+            let mut col = (boid.position.x / GRID_RESOLUTION as f32).floor();
+            let mut row = (boid.position.y / GRID_RESOLUTION as f32).floor();
+
+            grid[col as usize][row as usize].add(&boid);
+        }
+
         let boids_clone = self.boids.clone();
         for boid in &mut self.boids {
             boid.run_with_delta(&boids_clone, delta_time);
