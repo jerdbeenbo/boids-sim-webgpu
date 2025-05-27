@@ -64,8 +64,11 @@ export class Flock {
         FlockFinalization.register(this, this.__wbg_ptr, this);
         return this;
     }
-    update() {
-        wasm.flock_update(this.__wbg_ptr);
+    /**
+     * @param {number} delta_time
+     */
+    update_with_delta(delta_time) {
+        wasm.flock_update_with_delta(this.__wbg_ptr, delta_time);
     }
     /**
      * @returns {Float32Array}

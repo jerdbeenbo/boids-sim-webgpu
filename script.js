@@ -4,6 +4,9 @@ import init, { Flock } from './pkg/boids_sim.js';
 let lastCalledTime = performance.now();
 let frameCount = 0;
 let fps = 0;
+let lastTime = 0;
+const targetFPS = 60;
+const interval = 1000 / targetFPS;  //milliseconds / frame
 
 function updateFPS() {
     const now = performance.now();
@@ -28,24 +31,34 @@ async function run() {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     
-    function animate() {
-        flock.update();
-        const positions = flock.get_positions();
+    let lastTime = 0;
+    
+    function animate(currentTime) {
+        // Calculate delta time in seconds
+        const deltaTime = (currentTime - lastTime) / 1000;
+        lastTime = currentTime;
         
-        // Clear and draw
+        // Skip first frame (no valid delta)
+        if (deltaTime > 0 && deltaTime < 0.1) { // Cap at 0.1s to handle tab switching
+            flock.update_with_delta(deltaTime);
+        }
+        
+        const positions = flock.get_positions();
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "yellow";
-
+        
         for (let i = 0; i < positions.length; i += 2) {
             ctx.beginPath();
-            ctx.arc(positions[i], positions[i + 1], 3, 0, Math.PI * 2);
-            ctx.fill( );
+            ctx.arc(positions[i], positions[i + 1], 1, 0, Math.PI * 2);
+            ctx.fill();
         }
         
         updateFPS();
-        requestAnimationFrame(animate); //run animation
+        requestAnimationFrame(animate);
     }
-    animate();
+    
+    requestAnimationFrame(animate);
 }
 
-run();  //Start the simulation
+run(); //start the simulation

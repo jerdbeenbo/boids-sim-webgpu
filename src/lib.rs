@@ -51,32 +51,33 @@ impl Boid {
     }
 
     ///Each boid will self-manage according to separation/cohesion/alignment rules
-    fn run(&mut self, boids: &Vec<Boid>) {
-        //separation, alignmnet and cohesion
+    fn run_with_delta(&mut self, boids: &Vec<Boid>, delta_time: f32) {
         let separation = self.separate(boids);
         let alignment = self.align(boids);
         let cohesion = self.cohere(boids);
 
-        // Play with these weights to change behavior:
-        let separation = separation * 1.4;   // Higher = more personal space
-        let alignment = alignment * 1.0;     // Higher = more coordinated movement
-        let cohesion = cohesion * 1.0;       // Higher = tighter flocks
+        let separation = separation * 2.0;
+        let alignment = alignment * 0.3;
+        let cohesion = cohesion * 3.0;
 
         self.apply_force(separation);
         self.apply_force(alignment);
         self.apply_force(cohesion);
 
-        self.update();
+        self.update_with_delta(delta_time);
     }
 
     fn apply_force(&mut self, force: Vec2) {
         self.acceleration += force;
     }
 
-    fn update(&mut self) {
-        self.velocity += self.acceleration;
+    fn update_with_delta(&mut self, delta_time: f32) {
+        // Scale movement by delta time (60fps = ~0.0167 delta)
+        let time_scale = delta_time * 60.0; // Normalize to 60fps equivalent
+        
+        self.velocity += self.acceleration * time_scale;
         self.velocity = self.velocity.clamp_length_max(self.max_speed);
-        self.position += self.velocity;
+        self.position += self.velocity * time_scale;
         
         // Wrap around screen edges
         if self.position.x < 0.0 { self.position.x = 1200.0; }
@@ -208,12 +209,10 @@ impl Flock {
     }
 
     #[wasm_bindgen]
-    pub fn update(&mut self) {
-
+    pub fn update_with_delta(&mut self, delta_time: f32) {
         let boids_clone = self.boids.clone();
-
         for boid in &mut self.boids {
-            boid.run(&boids_clone)
+            boid.run_with_delta(&boids_clone, delta_time);
         }
     }
 

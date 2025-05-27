@@ -7,7 +7,7 @@ export function setup(): void;
 export class Flock {
   free(): void;
   constructor(amt: number);
-  update(): void;
+  update_with_delta(delta_time: number): void;
   get_positions(): Float32Array;
 }
 
@@ -17,7 +17,7 @@ export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_flock_free: (a: number, b: number) => void;
   readonly flock_new: (a: number) => number;
-  readonly flock_update: (a: number) => void;
+  readonly flock_update_with_delta: (a: number, b: number) => void;
   readonly flock_get_positions: (a: number) => [number, number];
   readonly setup: () => void;
   readonly __wbindgen_export_0: WebAssembly.Table;
