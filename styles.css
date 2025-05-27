@@ -10,3 +10,9 @@ canvas {
   border: none;
   background-color: rgb(150, 150, 150);
 }
+
+p {
+    text-align: center;
+    margin: auto;
+    padding: 0;
+}

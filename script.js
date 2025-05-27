@@ -27,7 +27,7 @@ function updateFPS() {
 async function run() {
     await init();
     
-    const flock = new Flock(2000);
+    const flock = new Flock(1500);
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     
@@ -50,7 +50,7 @@ async function run() {
         
         for (let i = 0; i < positions.length; i += 2) {
             ctx.beginPath();
-            ctx.arc(positions[i], positions[i + 1], 1.2, 0, Math.PI * 2);
+            ctx.arc(positions[i], positions[i + 1], 1, 0, Math.PI * 2);
             ctx.fill();
         }
         
