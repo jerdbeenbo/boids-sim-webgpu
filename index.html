@@ -9,8 +9,8 @@
     <h3>Flocking Simulation</h3>
     <p id="fps-display">FPS: --</p>
     <p>1500 individual boids, using the 3 classic flocking rules (Seperation, Alignment, Cohesion) + Gary Flake's 4th View Unblocking rule</p>
-    <p>Employing bin-lattice spatial subdivision for optimisation</p>
-    <p>Rust compiled to WebAssembly for simulation | HTML, JavaScript Canvas</p>
+    <p>Employing bin-lattice spatial subdivision for optimisation, boid simulation computed on CPU via Rust -> WebAssembly</p>
+    <p>Rust compiled to WebAssembly for simulation computation | WebGPU canvas render-shaders rendering the positional values from Rust in parallel</p>
     <canvas id="canvas" width="1200" height="800"></canvas>
     <script type="module" src="visual_webgpu.js"></script>
     

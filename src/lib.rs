@@ -379,5 +379,5 @@ pub fn update_with_delta(&mut self, delta_time: f32) {
 #[wasm_bindgen]
 pub fn setup() {
     //Run this initialisation
-    let flock: Flock = Flock::new(1500); //Create a new flock with n boids
+    let flock: Flock = Flock::new(3000); //Create a new flock with n boids
 }
