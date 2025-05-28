@@ -1,5 +1,34 @@
 import init, { Flock } from './pkg/boids_sim.js';
 
+//check to see if this browser can support websgpu
+if (!navigator.gpu) {
+    throw new Error("WebGPU not support on this browser.");
+}
+
+//get an adapter for webgpu
+const adapter = await navigator.gpu.requestAdapter();
+//check if adapter can be found
+if (!adapter) {
+  throw new Error("No appropriate GPUAdapter found.");
+}
+
+//once adapter is initialised, request GPU device, encoder and create workgroup size
+const device = await adapter.requestDevice();
+const encoder = device.createCommandEncoder();
+const WORKGROUP_SIZE = 64;
+
+
+const simulationShaderModule = device.createShaderModule({
+    label: "Flocking Simulation Shader",
+    code: `
+        @compute
+        @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE})
+        fn computeMain(@builtin(global_invocation_id) cell: vec3u) {    //the param can be treated like the cell index its going to operate on
+
+        } 
+    `
+});
+
 //for tracking FPS
 let lastCalledTime = performance.now();
 let frameCount = 0;
@@ -29,7 +58,14 @@ async function run() {
     
     const flock = new Flock(1500);
     const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('webgpu');
+
+    //configure canvas for webgpu
+    const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+    ctx.configure({
+        device: device,
+        format: canvasFormat,
+    });
     
     let lastTime = 0;
     
