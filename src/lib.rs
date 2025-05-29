@@ -356,10 +356,10 @@ pub fn update_with_delta(&mut self, delta_time: f32) {
         let cohesion = boid.cohere(&neighbors);
         let unblock = boid.view_unblocking(&neighbors);
         
-        boid.apply_force(separation * 2.0);  // Increased from 1.5
-        boid.apply_force(alignment * 1.5);   // Increased from 1.0
-        boid.apply_force(cohesion * 1.8);    // Increased from 1.2
-        boid.apply_force(unblock * 0.4);     // Increased from 0.3
+        boid.apply_force(separation * 2.0);     // Increased from 1.5
+        boid.apply_force(alignment * 1.5);      // Increased from 1.0
+        boid.apply_force(cohesion * 1.8);       // Increased from 1.2
+        boid.apply_force(unblock * 0.4);        // Increased from 0.3
         boid.update_with_delta(delta_time);
     }
 }
