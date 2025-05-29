@@ -13,7 +13,7 @@ if (!adapter) {
 //once adapter is initialised, request GPU device
 const device = await adapter.requestDevice();
 
-const NUM_BOIDS = 12500;
+const NUM_BOIDS = 10000;
 const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 800;
 const WORKGROUP_SIZE = 64;
