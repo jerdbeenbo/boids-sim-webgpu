@@ -192,7 +192,7 @@ async function run() {
             const renderPass = encoder.beginRenderPass({
                 colorAttachments: [{
                     view: context.getCurrentTexture().createView(),
-                    clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                    clearValue: { r: 105/255, g: 105/255, b: 105/255, a: 0.2 },
                     loadOp: "clear",
                     storeOp: "store",
                 }]
