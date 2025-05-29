@@ -1,12 +1,12 @@
-let MAX_SPEED: f32 = 6.0;
-let MAX_FORCE: f32 = 0.9; //How sharp or smooth they turn
+const MAX_SPEED: f32 = 6.0;
+const MAX_FORCE: f32 = 0.9; //How sharp or smooth they turn
 
-let GRID_RESOLUTION: u32 = 40; //each cell is 40x40 pixels
-let WIDTH: u32 = 1200;
-let HEIGHT: u32 = 800;
+const GRID_RESOLUTION: u32 = 40; //each cell is 40x40 pixels
+const WIDTH: u32 = 1200;
+const HEIGHT: u32 = 800;
 
-let COLS: u32 = WIDTH / GRID_RESOLUTION;
-let ROWS: u32 = HEIGHT / GRID_RESOLUTION;
+const COLS: u32 = WIDTH / GRID_RESOLUTION;
+const ROWS: u32 = HEIGHT / GRID_RESOLUTION;
 
 struct Boid {
     position: vec2f,
@@ -16,130 +16,169 @@ struct Boid {
     max_force: f32, //Alignment / Cohesion / Separation
 }
 
-@group(0) @binding(0) var<storage, read_write> boids: array<Boid>;  //read_write is need
+@group(0) @binding(0) var<storage, read_write> boids: array<Boid>;
+@group(0) @binding(1) var<uniform> params: vec4f; // [deltaTime, width, height, numBoids]
 
+fn clamp_length_max(v: vec2f, max_length: f32) -> vec2f {
+    let len = length(v);
+    if (len > max_length) {
+        return normalize(v) * max_length;
+    }
+    return v;
+}
 
-fn seek(index: u32, target: vec2f) -> vec2f {
+fn seek(index: u32, target_pos: vec2f) -> vec2f {
     // Calculate desired velocity (target - current position)
-    let desired = target - boids[index].position;
+    var desired = target_pos - boids[index].position;
 
     // Safe normalization check
-    if desired.length() < 0.001 {
-        return vec2f(0,0);  //don't provide any force
+    if length(desired) < 0.001 {
+        return vec2f(0.0, 0.0);
     }
 
     // Set magnitude to max speed
-    let desired = desired.normalize() * MAX_SPEED;
+    desired = normalize(desired) * MAX_SPEED;
 
     // Calculate steering force (desired - current velocity)
-    let steer = desired - boids[index].velocity;
+    var steer = desired - boids[index].velocity;
 
     // Limit steering force
-    let steer_result = steer.clamp_length_max(MAX_FORCE);
+    var steer_result = clamp_length_max(steer, MAX_FORCE);
 
     return steer_result;
 }
 
-fn separate(index: u32, boids: array<Boid>) -> vec2f {
-
+fn separate(self_index: u32) -> vec2f {
     let desired_separation: f32 = 19.0;
-    var sum = vec2f::ZERO;
-    var count = 0;
+    var sum = vec2f(0.0, 0.0);
+    var count = 0u;
 
-    for(var other = 0; other < boids.lenght(); other++) {
-            
-        let distance = self.position.distance(other.position);
+    for (var other = 0u; other < u32(params.w); other++) {
+        let dist = distance(boids[self_index].position, boids[other].position);
 
-            if self != other && distance > 0.001 && distance < desired_separation {
-                // Added minimum distance check
-                let mut diff = self.position - other.position;
-
-                // Safe normalization
-                if diff.length() > 0.001 {
-                    diff = diff.normalize() / distance;
-                    sum += diff;
-                    count += 1;
-                }
-            }
-        }
-
-        if count > 0 {
-            sum /= count as f32;
+        if self_index != other && dist > 0.001 && dist < desired_separation {
+            // Added minimum distance check
+            var diff = boids[self_index].position - boids[other].position;
 
             // Safe normalization
-            if sum.length() > 0.001 {
-                sum = sum.normalize() * self.max_speed;
-                let steer = sum - self.velocity;
-                steer.clamp_length_max(self.max_force)
-            } else {
-                vec2f::ZERO
+            if length(diff) > 0.001 {
+                diff = normalize(diff) / dist;
+                sum += diff;
+                count += 1u;
             }
-        } else {
-            vec2f::ZERO
         }
     }
 
-    ///Helper function to calculate angle between two vec
+    if count > 0u {
+        sum /= f32(count);
 
-    fn align(&self, boids: &Vec<Boid>) -> vec2f {
-        let desired_view_angle: f32 = 4.0 / 2.0; //170 degrees in radian (half as we are measuring from the center of your vision outward)
-        let neighbour_distance = 50.0;
-
-        let mut sum = vec2f::ZERO;
-        let mut count = 0;
-
-        //Add up all the velocities and divide by the total to calculate the average velocity
-        for other in boids {
-            //velocity vector tells us the facing direction
-            let d1: vec2f = self.velocity;
-
-            //the firection from current boid to other boid
-            let d2: vec2f = other.position - self.position;
-
-            //calculate angle between d1 and d2
-            let angle = vec2f::angle_to(d1, d2).abs(); //we only care about full range so return absolute value (alwasy positive)
-
-            let distance = self.position.distance(other.position);
-
-            if self != other && angle < desired_view_angle && distance < neighbour_distance {
-                sum += other.velocity;
-                count += 1; //for an average, keep track of how many boids are within the distance
-            }
-        }
-
-        if count > 0 {
-            sum /= count as f32;
-            if sum.length() > 0.001 {
-                sum = sum.normalize() * self.max_speed;
-            } else {
-                sum = vec2f::ZERO;
-            }
-
-            let steer = sum - self.velocity;
-            let steer = steer.clamp_length_max(self.max_force);
-            steer
+        // Safe normalization
+        if length(sum) > 0.001 {
+            sum = normalize(sum) * MAX_SPEED;
+            let steer = sum - boids[self_index].velocity;
+            var steer_result = clamp_length_max(steer, MAX_FORCE);
+            return steer_result;
         } else {
-            vec2f::ZERO //if no close boids are found, the steering force is zero
+            return vec2f(0.0, 0.0);
+        }
+    } else {
+        return vec2f(0.0, 0.0);
+    }
+}
+
+fn align(self_index: u32) -> vec2f {
+    let desired_view_angle: f32 = 2.0;
+    let neighbour_distance = 50.0;
+
+    var sum = vec2f(0.0, 0.0);
+    var count = 0u;
+
+    for (var other = 0u; other < u32(params.w); other++) {
+        let d1 = boids[self_index].velocity;
+        let d2 = boids[other].position - boids[self_index].position;
+        let angle = abs(acos(dot(normalize(d1), normalize(d2))));
+        let dist = distance(boids[self_index].position, boids[other].position);
+
+        if self_index != other && angle < desired_view_angle && dist < neighbour_distance {
+            sum += boids[other].velocity;
+            count += 1u;
         }
     }
 
-    fn cohere(&self, boids: &Vec<Boid>) -> vec2f {
-        let neighbour_distance: f32 = 40.0; // Increase for stronger grouping
-
-        let mut sum = vec2f::ZERO;
-        let mut count = 0;
-        for other in boids {
-            let distance = self.position.distance(other.position);
-            if self != other && distance < neighbour_distance {
-                sum += other.position;
-                count += 1;
-            }
-        }
-        if count > 0 {
-            sum /= count as f32;
-            self.seek(sum)
+    if count > 0u {
+        sum /= f32(count);
+        if length(sum) > 0.001 {
+            sum = normalize(sum) * MAX_SPEED;
         } else {
-            vec2f::ZERO
+            sum = vec2f(0.0, 0.0);
+        }
+
+        let steer = sum - boids[self_index].velocity;
+        var steer_result = clamp_length_max(steer, MAX_FORCE);
+        return steer_result;
+    } else {
+        return vec2f(0.0, 0.0);
+    }
+}
+
+fn cohere(self_index: u32) -> vec2f {
+    let neighbour_distance: f32 = 40.0;
+
+    var sum = vec2f(0.0, 0.0);
+    var count = 0u;
+    
+    for (var other = 0u; other < u32(params.w); other++) {
+        let dist = distance(boids[self_index].position, boids[other].position);
+        if self_index != other && dist < neighbour_distance {
+            sum += boids[other].position;
+            count += 1u;
         }
     }
+    
+    if count > 0u {
+        sum /= f32(count);
+        return seek(self_index, sum);
+    } else {
+        return vec2f(0.0, 0.0);
+    }
+}
 
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+    let index = id.x;
+    if (index >= u32(params.w)) { return; } // bounds check
+    
+    let delta_time = params.x;
+    let time_scale = delta_time * 60.0; // Normalize to 60fps equivalent
+    
+    // Calculate all the forces
+    let separation_force = separate(index);
+    let alignment_force = align(index);
+    let cohesion_force = cohere(index);
+    
+    // Apply your weight multipliers from Rust version
+    let separation = separation_force * 1.5;
+    let alignment = alignment_force * 1.0;
+    let cohesion = cohesion_force * 1.2;
+    
+    // Combine all forces into total acceleration
+    let total_acceleration = separation + alignment + cohesion;
+    
+    // Update velocity with acceleration
+    var new_velocity = boids[index].velocity + total_acceleration * time_scale;
+    new_velocity = clamp_length_max(new_velocity, MAX_SPEED);
+    
+    // Update position with velocity
+    var new_position = boids[index].position + new_velocity * time_scale;
+    
+    // Screen wrapping from Rust version
+    if (new_position.x < 0.0) { new_position.x = f32(WIDTH); }
+    if (new_position.x > f32(WIDTH)) { new_position.x = 0.0; }
+    if (new_position.y < 0.0) { new_position.y = f32(HEIGHT); }
+    if (new_position.y > f32(HEIGHT)) { new_position.y = 0.0; }
+    
+    // Write back to the boids array
+    boids[index].velocity = new_velocity;
+    boids[index].position = new_position;
+    boids[index].acceleration = vec2f(0.0, 0.0); // Reset acceleration
+}
